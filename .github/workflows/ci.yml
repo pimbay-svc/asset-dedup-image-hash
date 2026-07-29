@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main, contrib]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['24']
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install imagehash worker runtime dependencies (needed by real integration tests)
+        run: pip install --no-cache-dir -r scripts/requirements.txt
+
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Lint
+        run: npm run js:lint
+
+      - name: Format check
+        run: npm run js:format
+
+      - name: Typecheck (src + test)
+        run: npm run js:typecheck
+
+      - name: Build
+        run: npm run js:build
+
+      - name: Unit + integration tests (with coverage threshold)
+        run: npm run test:coverage
+        env:
+          PYTHON_BIN: python3
+
+      - name: Mutation testing
+        run: npm run test:mutation
+
+  python:
+    name: Python worker tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install worker + test dependencies
+        run: |
+          pip install --no-cache-dir -r scripts/requirements.txt
+          pip install --no-cache-dir -r scripts/tests/requirements.txt
+
+      - name: Run pytest
+        run: python3 -m pytest scripts/tests
+
+  docker-build:
+    name: Docker build (validation only, no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          tags: pimbay/asset-dedup-image-hash:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

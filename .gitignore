@@ -1,0 +1,17 @@
+/.idea/
+/.settings/
+
+/dist/
+/node_modules/
+/scripts/.venv/
+/scripts/tests/.venv/
+/var/
+
+.env
+.env.*
+!.env.example
+*.local
+*.py[cod]
+**/__pycache__/
+**/.pytest_cache/
+!/**/.gitkeep

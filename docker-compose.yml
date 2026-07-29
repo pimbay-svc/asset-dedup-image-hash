@@ -1,0 +1,19 @@
+services:
+  image-hash:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: pimbay/asset-dedup-image-hash:local
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      SOCKET_PATH: /sockets/image-hash.sock
+      IMAGEHASH_TIMEOUT_MS: 10000
+    volumes:
+      - sockets:/sockets
+      - shared-assets:/shared:ro
+    restart: unless-stopped
+
+volumes:
+  sockets:
+  shared-assets:
