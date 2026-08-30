@@ -1,9 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches: [main, contrib]
   pull_request:
+    branches: [contrib]
+  push:
+    branches: [contrib]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,7 +32,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install imagehash worker runtime dependencies (needed by real integration tests)
+      - name: Install imagehash worker runtime dependencies
         run: pip install --no-cache-dir -r scripts/requirements.txt
 
       - name: Audit runtime dependencies
@@ -43,13 +44,13 @@ jobs:
       - name: Format check
         run: npm run js:format
 
-      - name: Typecheck (src + test)
+      - name: Typecheck
         run: npm run js:typecheck
 
       - name: Build
         run: npm run js:build
 
-      - name: Unit + integration tests (with coverage threshold)
+      - name: Unit + integration tests
         run: npm run test:coverage
         env:
           PYTHON_BIN: python3
@@ -91,3 +92,18 @@ jobs:
           tags: pimbay/asset-dedup-image-hash:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  sync:
+    if: github.event_name == 'push'
+    needs: [node, docker-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push contrib to Codeberg
+        run: |
+          git remote add codeberg https://oauth2:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/pimbay-svc/asset-dedup-image-hash.git
+          git fetch codeberg contrib:refs/remotes/codeberg/contrib || true
+          git push codeberg contrib:contrib --force
