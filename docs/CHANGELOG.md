@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Added
+
+- `buildUdsServer` now removes a stale socket file left behind by an unclean shutdown before binding.
+
 ## [1.0.0] - 2026-08-15
 
 - Unix-domain-socket hashing service: `core` is the client, this service is the server, connecting once and staying open (`docs/DECISIONS.md`, 2026-07-28) — no HTTP, no auth beyond the shared-volume socket file itself.
