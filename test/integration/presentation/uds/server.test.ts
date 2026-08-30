@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import net from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildUdsServer, type UdsServerHandle } from '../../../../src/presentation/uds/server.js';
@@ -65,6 +65,41 @@ describe('UDS server', () => {
 
   it('logs the socket path once listening starts', () => {
     expect(cradle.logger.info).toHaveBeenCalledWith({ socketPath }, UdsServerMessage.LISTENING);
+  });
+
+  it('removes a stale socket file left by an unclean shutdown and listens successfully', async () => {
+    // A plain file at the path (not a live listener) is exactly what a Unix domain socket file
+    // looks like after the process that owned it was SIGKILLed rather than shutting down
+    // cleanly — connecting to it fails, so it must be treated as stale and removed, not left to
+    // make this listen() fail with a false EADDRINUSE.
+    const stalePath = path.join(dir, 'stale.sock');
+    await writeFile(stalePath, '');
+
+    const staleCradle = {
+      env: { SOCKET_PATH: stalePath },
+      logger: fakeLogger(),
+      imageHashService: { hashBatch },
+    } as unknown as Cradle;
+
+    const staleHandle = await buildUdsServer(staleCradle);
+    await staleHandle.close();
+  });
+
+  it('rejects if the stale-socket cleanup itself fails for a non-ENOENT reason', async () => {
+    // A directory at the socket path isn't a live listener either (connecting to it still
+    // fails, so it's treated as "stale" and unlink is attempted) — but unlink() on a directory
+    // fails with EISDIR, not ENOENT, and that must propagate rather than being silently
+    // swallowed the way a genuinely-missing file (ENOENT) is.
+    const dirAtSocketPath = path.join(dir, 'blocking-dir.sock');
+    await mkdir(dirAtSocketPath);
+
+    const badCradle = {
+      env: { SOCKET_PATH: dirAtSocketPath },
+      logger: fakeLogger(),
+      imageHashService: { hashBatch },
+    } as unknown as Cradle;
+
+    await expect(buildUdsServer(badCradle)).rejects.toMatchObject({ code: 'EISDIR' });
   });
 
   it('removes its own startup error listener once listening succeeds', () => {

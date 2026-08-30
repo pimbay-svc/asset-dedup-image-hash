@@ -7,6 +7,7 @@
  * For the full license information, see the LICENSE file.
  */
 import net from 'node:net';
+import { unlink } from 'node:fs/promises';
 import type pino from 'pino';
 import type { Cradle } from '../../infrastructure/container.js';
 import { FrameDecoder, encodeFrame } from '../../infrastructure/uds/framing.js';
@@ -16,6 +17,31 @@ import { UdsServerMessage } from './messages.js';
 export interface UdsServerHandle {
   server: net.Server;
   close: () => Promise<void>;
+}
+
+async function removeStaleSocket(socketPath: string): Promise<void> {
+  const isStale = await new Promise<boolean>((resolve) => {
+    const probe = net.connect(socketPath);
+    probe.once('connect', () => {
+      probe.destroy();
+      resolve(false);
+    });
+    probe.once('error', () => {
+      resolve(true);
+    });
+  });
+
+  if (!isStale) {
+    return;
+  }
+
+  try {
+    await unlink(socketPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err;
+    }
+  }
 }
 
 /**
@@ -87,6 +113,8 @@ export async function buildUdsServer(cradle: Cradle): Promise<UdsServerHandle> {
       logger.warn({ err }, UdsServerMessage.CONNECTION_ERROR);
     });
   });
+
+  await removeStaleSocket(cradle.env.SOCKET_PATH);
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
