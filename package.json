@@ -15,7 +15,7 @@
     "url": "https://codeberg.org/pimbay-svc/asset-dedup-image-hash"
   },
   "bugs": {
-     "url": "https://github.com/pimbay-svc/asset-dedup-image-hash/issues"
+    "url": "https://github.com/pimbay-svc/asset-dedup-image-hash/issues"
   },
   "type": "module",
   "engines": {
