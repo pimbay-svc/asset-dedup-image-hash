@@ -8,10 +8,9 @@
  */
 
 /**
- * Shared wire framing for the Unix domain socket protocol: every message (both directions) is
- * `[4 bytes: length, big-endian uint32][N bytes: UTF-8 JSON payload]` — no boundary beyond this
- * length prefix, so partial reads must be buffered until a full frame is available.
- * Pure logic, no `net`/socket dependency, so it's unit-testable by feeding raw chunks directly.
+ * Shared wire framing for the Unix domain socket protocol: every message is
+ * `[4 bytes: length, big-endian uint32][N bytes: UTF-8 JSON payload]` — partial reads are
+ * buffered until a full frame is available. Pure logic, no `net` dependency.
  */
 
 const LENGTH_PREFIX_BYTES = 4;
@@ -39,7 +38,7 @@ export class FrameDecoder {
       const frameLength = LENGTH_PREFIX_BYTES + payloadLength;
 
       if (this.buffer.length < frameLength) {
-        break; // rest of the frame hasn't arrived yet
+        break;
       }
 
       const payload = this.buffer.subarray(LENGTH_PREFIX_BYTES, frameLength);

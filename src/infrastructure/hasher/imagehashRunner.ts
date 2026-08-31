@@ -18,6 +18,10 @@ const WorkerExitCode = {
   BAD_ARGUMENTS: 2,
 } as const;
 
+/**
+ * Swallows EPIPE on the worker's stdin: on a large input, the worker can exit and close its end of the pipe before
+ * the source stream finishes writing to it, and an unhandled 'error' here would otherwise crash the process.
+ */
 export function suppressEpipe(stdin: NodeJS.WritableStream): void {
   stdin.on('error', () => undefined);
 }
@@ -43,9 +47,8 @@ export class ImagehashRunner implements ImageHasher {
       let settled = false;
 
       const timer = setTimeout(() => {
-        /* v8 ignore next 3 -- a setTimeout callback only ever fires once; `settled` cannot
-           already be true the first (and only) time this runs, so this guard exists only for
-           defensive symmetry with the 'error'/'close' handlers below. */
+        /* v8 ignore next 3 -- setTimeout fires only once, so `settled` can't already be true;
+           guard kept only for symmetry with the 'error'/'close' handlers below. */
         if (settled) {
           return;
         }
@@ -58,9 +61,8 @@ export class ImagehashRunner implements ImageHasher {
       child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
       child.on('error', (err) => {
-        /* v8 ignore next 3 -- reachable only if 'error' fires after the timeout already settled
-           this promise, which would require a hung process to still emit a spawn-level error
-           afterwards; not something a well-behaved or even misbehaving python3 does. */
+        /* v8 ignore next 3 -- would need a spawn-level error after the timeout already settled
+           this promise, i.e. a hung process still erroring afterwards; not realistic. */
         if (settled) {
           return;
         }
@@ -92,18 +94,15 @@ export class ImagehashRunner implements ImageHasher {
         resolve(Buffer.concat(stdoutChunks).toString('utf-8').trim());
       });
 
-      // See suppressEpipe()'s own docstring for why this exists and why it's a separate function.
+      // Kept separate so its own docstring above can explain the EPIPE hazard on its own terms.
       suppressEpipe(child.stdin);
 
-      // Reading the source file is itself a possible failure mode (missing file, permission error) distinct from
-      // anything the worker process reports — surfaced as CorruptInputError since it means the given path wasn't
-      // a usable image, not an internal fault of this service.
+      // A missing/unreadable source file is CorruptInputError, not an internal fault.
       const source = createReadStream(imagePath);
       source.on('error', (err) => {
-        /* v8 ignore next 3 -- reachable only if the source file errors after the worker's own
-           'close'/'error'/timeout handler already settled this promise, which would require the
-           child process to exit before its stdin pipe finishes erroring — not a sequence a real
-           filesystem error (ENOENT, EACCES) produces in practice. */
+        /* v8 ignore next 3 -- would need the source file to error after the worker's own
+           handler already settled this promise, i.e. the child exiting before its stdin
+           finishes erroring; not a sequence a real ENOENT/EACCES produces. */
         if (settled) {
           return;
         }
