@@ -68,10 +68,8 @@ describe('UDS server', () => {
   });
 
   it('removes a stale socket file left by an unclean shutdown and listens successfully', async () => {
-    // A plain file at the path (not a live listener) is exactly what a Unix domain socket file
-    // looks like after the process that owned it was SIGKILLed rather than shutting down
-    // cleanly — connecting to it fails, so it must be treated as stale and removed, not left to
-    // make this listen() fail with a false EADDRINUSE.
+    // A plain file at the path (no live listener) is what a socket file looks like after a
+    // SIGKILLed process — must be treated as stale and removed, not left to cause EADDRINUSE.
     const stalePath = path.join(dir, 'stale.sock');
     await writeFile(stalePath, '');
 
@@ -86,10 +84,8 @@ describe('UDS server', () => {
   });
 
   it('rejects if the stale-socket cleanup itself fails for a non-ENOENT reason', async () => {
-    // A directory at the socket path isn't a live listener either (connecting to it still
-    // fails, so it's treated as "stale" and unlink is attempted) — but unlink() on a directory
-    // fails with EISDIR, not ENOENT, and that must propagate rather than being silently
-    // swallowed the way a genuinely-missing file (ENOENT) is.
+    // A directory at the socket path is also treated as "stale" (connecting fails), but its
+    // unlink() fails with EISDIR, not ENOENT — that must propagate, not be silently swallowed.
     const dirAtSocketPath = path.join(dir, 'blocking-dir.sock');
     await mkdir(dirAtSocketPath);
 
@@ -109,9 +105,8 @@ describe('UDS server', () => {
   });
 
   it('rejects if the socket path is already bound by another listener', async () => {
-    // A second server on the exact same UDS path triggers a real EADDRINUSE 'error' event
-    // during listen() — proving server.once('error', reject) is wired to the real event name,
-    // not a mutated one that would never fire and leave this hanging forever.
+    // A second server on the same UDS path triggers a real EADDRINUSE 'error' during listen() —
+    // proves server.once('error', reject) is wired to the real event name, not a mutated one.
     const secondCradle = {
       env: { SOCKET_PATH: socketPath },
       logger: fakeLogger(),
@@ -156,7 +151,7 @@ describe('UDS server', () => {
     const first = await connectFrames(socketPath);
     const firstResponse = nextFrame(first.socket, first.decoder);
     first.socket.write(encodeFrame({ op: 'hash', config: { algorithm: 'phash', hash_size: 8 }, inputs: {} }));
-    await firstResponse; // first connection is now "active"
+    await firstResponse;
 
     const second = await connectFrames(socketPath);
     const secondClosed = waitForClose(second.socket);
@@ -197,7 +192,7 @@ describe('UDS server', () => {
     const rejected = await connectFrames(socketPath);
     const rejectedClosed = waitForClose(rejected.socket);
     rejected.socket.write(encodeFrame({ op: 'hash', config: { algorithm: 'phash', hash_size: 8 }, inputs: {} }));
-    await rejectedClosed; // server destroyed it immediately — `active` still holds the slot
+    await rejectedClosed;
 
     // A third connection must still be rejected too — proves `rejected`'s own close handler
     // didn't wrongly clear the active slot, which would let this one slip through instead.
@@ -206,7 +201,7 @@ describe('UDS server', () => {
     third.socket.write(encodeFrame({ op: 'hash', config: { algorithm: 'phash', hash_size: 8 }, inputs: {} }));
 
     await thirdClosed;
-    expect(hashBatch).toHaveBeenCalledTimes(1); // only `active`'s original request went through
+    expect(hashBatch).toHaveBeenCalledTimes(1);
 
     active.socket.destroy();
   });
@@ -270,7 +265,6 @@ describe('UDS server', () => {
 
     expect(hashBatch).not.toHaveBeenCalled();
 
-    // The connection is still open and the server still responds normally afterwards.
     const responsePromise = nextFrame(socket, decoder);
     socket.write(
       encodeFrame({

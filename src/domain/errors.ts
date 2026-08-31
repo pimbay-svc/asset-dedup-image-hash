@@ -22,12 +22,10 @@ export class CorruptInputError extends AssetDedupImageHashExtensionError {
     super(message);
   }
 
-  /** The worker itself exited with `WorkerExitCode.UNPROCESSABLE_INPUT`. */
   static workerRejected(stderr: string): CorruptInputError {
     return new CorruptInputError(stderr || 'could not process image (corrupt or unsupported format)');
   }
 
-  /** Reading the source file from its given path failed (missing, permission denied, ...). */
   static unreadableFile(cause: Error): CorruptInputError {
     return new CorruptInputError(`could not read image file: ${cause.message}`);
   }
@@ -51,7 +49,6 @@ export class InternalExtractionError extends AssetDedupImageHashExtensionError {
     return new InternalExtractionError(`failed to start imagehash worker: ${cause.message}`);
   }
 
-  /** Any non-zero exit code other than `WorkerExitCode.UNPROCESSABLE_INPUT`. */
   static workerExited(code: number | null, stderr: string): InternalExtractionError {
     return new InternalExtractionError(stderr || `imagehash worker exited with code ${String(code)}`);
   }
