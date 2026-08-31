@@ -38,9 +38,8 @@ describe('ImagehashRunner', () => {
   beforeAll(async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'image-hash-runner-test-'));
     largeGarbagePath = path.join(tempDir, 'large-garbage.bin');
-    // Generated here rather than committed as a fixture: a ~2MB random-bytes file adds real
-    // weight to the repo/checkout for a single test's benefit, and generating it fresh removes
-    // any dependency on the file surviving zip/git transfer intact.
+    // Generated here rather than committed: a ~2MB fixture isn't worth the repo weight for
+    // one test, and generating it fresh avoids depending on it surviving zip/git transfer.
     await writeFile(largeGarbagePath, randomBytes(2 * 1024 * 1024));
   });
 
@@ -116,15 +115,12 @@ describe('ImagehashRunner', () => {
   });
 
   it('does not crash when the worker closes stdin before the input finishes writing (EPIPE)', async () => {
-    // fake-python-exit1-no-stderr.sh closes its stdin fd immediately, before reading anything.
-    // A 2MB input guarantees multiple stdin writes, so the write-after-close EPIPE is hit
-    // deterministically (unlike a small file, which can finish in a single write before the
-    // process has even closed its end) — regression test for the child.stdin 'error' handler,
-    // see docs/DECISIONS.md.
+    // fake-python-exit1-no-stderr.sh closes stdin immediately. A 2MB input forces multiple stdin writes, so the
+    // write-after-close EPIPE hits deterministically — regression test for the child.stdin 'error' handler.
     const runner = new ImagehashRunner(makeEnv({ PYTHON_BIN: FAKE_PYTHON_EXIT1_NO_STDERR }));
 
-    // The assertion itself is almost secondary here — what this test is really for is that
-    // awaiting this doesn't crash the test process with an unhandled 'error' event.
+    // The assertion is secondary — the point is that awaiting this doesn't crash the process with an unhandled
+    // 'error' event.
     await expect(runner.hash(largeGarbagePath, { algorithm: ImagehashAlgorithm.PHASH, hashSize: 8 })).rejects.toThrow(
       'could not process image (corrupt or unsupported format)',
     );

@@ -12,11 +12,10 @@ import { ImagehashAlgorithm } from '../model/algorithm.model.js';
 export const MIN_HASH_SIZE = 2;
 
 /**
- * Returns an error message if `hashSize` is invalid for the given `algorithm`, or `null` if it's valid. Mirrors the
- * constraint enforced independently by `scripts/imagehash_worker.py`'s own `_validate_hash_size` (every algorithm
- * needs an integer >= `MIN_HASH_SIZE`; `whash` additionally needs a power of 2) — checked here too so a bad
- * `hash_size` fails the whole batch up front, the same way an unrecognized `algorithm` already does, instead of
- * spawning one worker process per input just to have each one independently reject it.
+ * Returns an error message if `hashSize` is invalid for `algorithm`, or `null` if valid. Mirrors
+ * `scripts/imagehash_worker.py`'s own `_validate_hash_size` (integer >= `MIN_HASH_SIZE`; `whash` additionally needs
+ * a power of 2) — checked here too so a bad `hash_size` fails the whole batch up front instead of spawning one
+ * worker per input just to have each reject it independently.
  */
 export function validateHashSize(algorithm: ImagehashAlgorithm, hashSize: number): string | null {
   if (!Number.isInteger(hashSize) || hashSize < MIN_HASH_SIZE) {

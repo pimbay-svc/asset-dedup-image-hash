@@ -9,9 +9,8 @@ const PYTHON_BIN = process.env.PYTHON_BIN ?? (existsSync(LOCAL_VENV_PYTHON) ? LO
 const WORKER_PATH = path.resolve(process.cwd(), 'scripts/imagehash_worker.py');
 
 /**
- * Builds a valid `Env` for tests, routed through the real `loadEnv`/zod validation so fixtures
- * stay honest about coercion and defaults instead of hand-rolling the shape. Pass string overrides
- * exactly as they'd appear in `process.env` (e.g. `IMAGEHASH_TIMEOUT_MS: '10000'`).
+ * Builds a valid `Env` for tests via the real `loadEnv`/zod validation, so fixtures stay honest
+ * about coercion/defaults. Pass overrides as strings, exactly as they'd appear in `process.env`.
  */
 export function makeEnv(overrides: Partial<Record<string, string>> = {}): Env {
   return loadEnv({
