@@ -1,7 +1,7 @@
 {
   "name": "@pimbay/asset-dedup-image-hash",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Image-hash extension for asset-dedup-core — computes perceptual image hashes over a Unix domain socket.",
   "license": "Unlicense",
   "author": {
