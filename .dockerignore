@@ -10,6 +10,8 @@ stryker.config.mjs
 .env.*
 !.env.example
 .git
+.gitea
+.github
 .gitignore
 .idea/
 .vscode/

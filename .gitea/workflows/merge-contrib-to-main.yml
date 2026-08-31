@@ -22,7 +22,7 @@ jobs:
         run: |
           git fetch origin main contrib
           git checkout main
-          git merge --no-ff origin/contrib -m "chore: merge contrib into main [skip ci]"
+          git merge --no-ff origin/contrib -m "chore: merge contrib into main"
           git push origin main
 
       - uses: actions/setup-node@v4
