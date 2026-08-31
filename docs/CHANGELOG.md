@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-31
+
 ### Added
 
 - `buildUdsServer` now removes a stale socket file left behind by an unclean shutdown before binding.
