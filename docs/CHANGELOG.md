@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Changed
+
+- `npm run dev` and `npm start` no longer require a `.env` file to exist.
+
 ## [1.0.2] - 2026-08-31
 
 ## [1.0.1] - 2026-08-31
