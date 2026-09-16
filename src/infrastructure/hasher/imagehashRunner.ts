@@ -12,7 +12,14 @@ import type { ImageHasher, HashOptions } from '../../domain/provider/hasher.prov
 import { CorruptInputError, InternalExtractionError } from '../../domain/errors.js';
 import type { Env } from '../env/env.js';
 
-/** `imagehash_worker.py`'s documented exit codes — see the script's own docstring. */
+/**
+ * `imagehash_worker.py`'s documented exit codes — see the script's own docstring.
+ * This mapping is load-bearing: below, only UNPROCESSABLE_INPUT becomes CorruptInputError, everything else non-zero
+ * (including BAD_ARGUMENTS, a spawn error, or a timeout) becomes InternalExtractionError. Missing IMAGEHASH_WORKER_PATH
+ * surfaces as InternalExtractionError for free this way — `python3 /no/such/worker.py` exits with CPython's own code 2
+ * for "can't open file", which happens to land in the same bucket as BAD_ARGUMENTS. Don't rely on that coincidence
+ * surviving a change to how the worker is invoked (e.g. switching to `python3 -m`).
+ */
 const WorkerExitCode = {
   UNPROCESSABLE_INPUT: 1,
   BAD_ARGUMENTS: 2,
