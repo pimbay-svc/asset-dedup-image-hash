@@ -7,27 +7,25 @@
 [![Mutation Score](https://img.shields.io/badge/MSI-100%25-brightgreen?style=flat-square)](https://codeberg.org/pimbay-svc/asset-dedup-image-hash)
 
 Perceptual-image-hashing extension for `asset-dedup-core`.
-Given one or more image paths on a shared volume, computes a perceptual hash per image and returns it — nothing is written to disk.
-Communication is a single persistent Unix-domain-socket connection from `core` (this service is the server), never HTTP — see the cross-repo protocol spec for the full design.
+Given one or more image paths on a shared volume, it computes a perceptual hash per image and returns it — nothing is written to disk.
+`core` decides which algorithm to use and sends this service only an explicit `algorithm`/`hash_size` per request; combining hashes or calling other extensions is out of scope here.
+Communication is a single persistent connection from `core` (this service is the server), length-prefixed JSON frames over a Unix domain socket — never HTTP.
 
 ## Quick Start (Local)
 
-Requires Python 3 with `scripts/requirements.txt` installed — a local venv is the easiest way:
+```bash
+git clone https://codeberg.org/pimbay-svc/asset-dedup-image-hash
+cd asset-dedup-image-hash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Requires Python 3 with `scripts/requirements.txt` installed — a local venv is the easiest way, and `.env.example` already points `PYTHON_BIN` at it:
 
 ```bash
 python3 -m venv scripts/.venv
 scripts/.venv/bin/pip install -r scripts/requirements.txt
-```
-
-```bash
-npm install
-cp .env.example .env
-# edit .env — SOCKET_PATH must point at a path this process can actually write
-# (a volume shared with asset-dedup-core in production, any local directory for standalone dev)
-# PYTHON_BIN is pre-set in .env.example to scripts/.venv/bin/python3, matching the venv created above
-# the parent directory of SOCKET_PATH must already exist — this process does not create it
-
-npm run dev
 ```
 
 ## Quick Start (Docker)
@@ -39,9 +37,47 @@ docker compose up --build
 Builds the image (Node runtime + Python 3 + `scripts/requirements.txt` in the same container, see `docker/Dockerfile`) and mounts two named volumes shared with `asset-dedup-core`: one for the socket file, one (read-only — this service never writes to it) for source images.
 No TCP port is published — the only interface this service has is the socket file on the shared volume.
 
-## Configuration
+Published images (built from the same tag, pushed to both registries on release — see `.github/workflows/release.yml`):
 
-Env-only.
+```bash
+docker pull pimbay/asset-dedup-image-hash:latest
+docker pull ghcr.io/pimbay-svc/asset-dedup-image-hash:latest
+```
+
+Full container reference (volumes, tags, standalone `docker run`): **[docker/README.md](docker/README.md)**.
+
+## Usage
+
+The smallest useful thing this service does: hash one local file over the socket and see its result.
+`scripts/dev/hash.sh` sends a `hash` op directly to a running instance — no full `core` client setup needed.
+
+```bash
+scripts/dev/hash.sh --image /shared/photo.jpg --algorithm phash --hash-size 16 --socket-path /path/to/image-hash.sock
+```
+
+```text
+hash op -> /path/to/image-hash.sock  (path: /shared/photo.jpg, algorithm: phash, hash_size: 16)
+{
+  "outputs": {
+    "id1": {
+      "hash": "9139c4f6894d8a1f9b9eea69a2332dc06ca5769670a3131ff66835e3d631893c"
+    }
+  }
+}
+```
+
+`--algorithm` (`phash`/`dhash`/`average_hash`/`whash`), `--hash-size`, and `--socket-path` are all optional:
+
+```bash
+scripts/dev/hash.sh --image /shared/photo.jpg
+scripts/dev/hash.sh --image /shared/photo.jpg --algorithm dhash
+scripts/dev/hash.sh --image /shared/photo.jpg --algorithm phash --hash-size 16
+scripts/dev/hash.sh --image /shared/photo.jpg --algorithm phash --hash-size 16 --socket-path /sockets/image-hash.sock
+```
+
+The image path must already be readable by the running instance — a path on the shared volume, not your host machine; only the path is sent, never file bytes.
+
+## Configuration
 
 | Variable               | Required | Description                                                              |
 | ---------------------- | -------- | ------------------------------------------------------------------------ |
@@ -49,7 +85,7 @@ Env-only.
 | `PYTHON_BIN`           | no       | Python interpreter used to invoke the hashing worker. Default `python3`. |
 | `IMAGEHASH_TIMEOUT_MS` | no       | Hard timeout for a single worker invocation. Default `10000`.            |
 
-Full reference (all env vars, incl. `IMAGEHASH_WORKER_PATH`): **[docs/configuration.md](docs/configuration.md)**.
+Full reference (all env vars, incl. `IMAGEHASH_WORKER_PATH`, `NODE_ENV`, `LOG_LEVEL`): **[docs/configuration.md](docs/configuration.md)**.
 
 ## API
 
@@ -72,7 +108,8 @@ npm run test:mutation      # StrykerJS mutation testing (target: 100% MSI, enfor
 npm run test:python        # pytest against scripts/imagehash_worker.py directly (needs scripts/tests/.venv)
 ```
 
-`npm run test:python` needs its own venv, separate from the one used to run the worker itself — set it up once:
+`test:unit`/`test:integration` need the Python venv from **Quick Start (Local)**.
+`test:python` needs its own, separate venv:
 
 ```bash
 python3 -m venv scripts/tests/.venv
@@ -89,18 +126,9 @@ npm run js:format:fix # fix
 npm run js:typecheck  # tsc --noEmit
 ```
 
-```bash
-scripts/dev/hash.sh --image /shared/frame-0.png
-scripts/dev/hash.sh --image /shared/frame-0.png --algorithm dhash
-scripts/dev/hash.sh --image /shared/frame-0.png --algorithm phash --hash-size 16
-scripts/dev/hash.sh --image /shared/frame-0.png --algorithm phash --hash-size 16 --socket-path /sockets/image-hash.sock
-```
-
-Sends a `hash` op directly to a running instance over the socket — `IMAGE_PATH` must already be readable by this process (a path on the shared volume, not your host machine); only the path is sent, never file bytes.
-
 ## Architecture & Decisions
 
-- **[docs/context.md](docs/context.md)** — current working state and non-obvious gotchas.
+- **[docs/context.md](docs/context.md)** — current working state: what's in progress, what's next.
 - **[docs/DECISIONS.md](docs/DECISIONS.md)** — why things are built the way they are, in the order the decisions were made.
 - **[docs/CHANGELOG.md](docs/CHANGELOG.md)** — version history.
 
