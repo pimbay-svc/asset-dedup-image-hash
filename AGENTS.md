@@ -13,7 +13,7 @@ License: Unlicense. Runtime: Node.js >= 24, Python 3 (for `scripts/imagehash_wor
 
 ```bash
 npm install
-npm run dev               # tsx watch --env-file=.env
+npm run dev               # tsx watch --env-file-if-exists=.env
 npm run js:build          # tsc -p tsconfig.build.json
 npm run js:lint           # eslint src test — check only
 npm run js:lint:fix       # eslint src test --fix
